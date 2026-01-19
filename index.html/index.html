@@ -56,13 +56,12 @@
         <div class="control-group">
             <span class="section-label">📐 فيزياء الدوامة</span>
             <label>حجم الأجرام (Scale): <input type="range" id="scaleRange" min="0.01" max="20.0" step="0.1" value="1.0"></label>
+            <label style="color:var(--shuttle)">تضخم المكوك الذكي: <input type="range" id="shuttleBoost" min="1" max="5000" step="1" value="1000"></label>
             <label>سرعة الدوران المداري: <input type="range" id="speedRange" min="0" max="10" step="0.1" value="4"></label>
         </div>
 
         <button onclick="focusTarget('الشمس', this)" class="active-target">☀️ قلب النظام (الشمس)</button>
-        
-        <button id="shuttleFocusBtn" class="shuttle-btn" onclick="focusShuttle(this)">🚀 رصد المكوك (Up Base)</button>
-        
+        <button id="shuttleFocusBtn" class="shuttle-btn" onclick="focusShuttle(this)">🚀 تتبع المكوك (رؤية تليسكوبية)</button>
         <div id="planetary-list"></div>
     </div>
 
@@ -74,7 +73,6 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
-        // === 1. الإعدادات الفنية الصارمة والملاحة ===
         const SUN_RADIUS = 5000000;
         const GALAXY_RADIUS = 100000000000;
         const ORION_ARM_DIST = GALAXY_RADIUS * 0.27;
@@ -82,7 +80,8 @@
         let trailsVisible = true;
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.0001, GALAXY_RADIUS * 3);
+        // حقن معامل الرؤية المجهري
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.000001, GALAXY_RADIUS * 3);
         const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -92,7 +91,7 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
-        controls.minDistance = SUN_RADIUS * 0.5; 
+        controls.minDistance = 0.1; 
         controls.maxDistance = GALAXY_RADIUS * 2;
 
         const galaxyPivot = new THREE.Group();
@@ -113,15 +112,9 @@
             const geo = new THREE.BufferGeometry();
             const pos = new Float32Array(MAX_POINTS * 3);
             geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            const mat = new THREE.LineBasicMaterial({ 
-                color: color, 
-                transparent: true, 
-                opacity: 0.8, 
-                blending: THREE.AdditiveBlending,
-                depthWrite: false 
-            });
+            const mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
             const line = new THREE.Line(geo, mat);
-            line.renderOrder = 1; 
+            line.renderOrder = 1;
             line.userData = { history: [] };
             scene.add(line);
             allTrails.push(line);
@@ -134,7 +127,6 @@
             document.getElementById('trailBtn').innerText = trailsVisible ? "إخفاء ذيل الرصد" : "إظهار ذيل الرصد";
         }
 
-        // === 2. النجوم المجرية (الحفاظ على العمق) ===
         const starGeo = new THREE.BufferGeometry();
         const starCount = 300000;
         const starPos = new Float32Array(starCount * 3);
@@ -150,29 +142,21 @@
         }
         starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
         starGeo.setAttribute('color', new THREE.BufferAttribute(starCol, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ 
-            size: 1.0, vertexColors: true, transparent: true, opacity: 0.7, 
-            blending: THREE.AdditiveBlending, depthWrite: false 
-        }));
-        stars.renderOrder = 0;
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ size: 1.0, vertexColors: true, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
         scene.add(stars);
 
-        // === 3. الشمس (تجميد الأسطح والضوء) ===
         const loader = new THREE.TextureLoader();
-        const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 128, 128), new THREE.MeshBasicMaterial({ 
-            map: loader.load('https://threejs.org/examples/textures/lava/lavatile.jpg'), color: 0xffcc33 
-        }));
-        sunMesh.renderOrder = 2;
+        const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 128, 128), new THREE.MeshBasicMaterial({ map: loader.load('https://threejs.org/examples/textures/lava/lavatile.jpg'), color: 0xffcc33 }));
         solarVortex.add(sunMesh);
         sunMesh.add(new THREE.PointLight(0xffffff, 6, 0));
         const sunTrail = createRadialTrail(0xffcc33);
 
-        // === 4. الكواكب والسينما (Logic Freeze) ===
+        // تم استرجاع بلوتو وحلقات زحل والأقمار بدقة
         const planetsData = [
             { name: "عطارد", size: 80000, dist: 25000000, speed: 0.15, color: 0x8C7853 },
             { name: "الزهرة", size: 190000, dist: 45000000, speed: 0.12, color: 0xFFC649 },
             { name: "الأرض", size: 210000, dist: 70000000, speed: 0.1, color: 0x2233FF, moons: [{name: "القمر", size:55000, dist:3500000, speed:0.3}] },
-            { name: "المريخ", size: 120000, dist: 100000000, speed: 0.08, color: 0xFF5522, moons: [{name: "فوبوس", size:30000, dist:2000000, speed:0.4}] },
+            { name: "المريخ", size: 120000, dist: 100000000, speed: 0.08, color: 0xFF5522, moons: [{size:30000, dist:2000000, speed:0.4}] },
             { name: "المشتري", size: 1400000, dist: 180000000, speed: 0.05, color: 0xFFA500 },
             { name: "زحل", size: 1200000, dist: 260000000, speed: 0.04, color: 0xEEDDA0, rings: true },
             { name: "أورانوس", size: 600000, dist: 350000000, speed: 0.03, color: 0x66FFFF },
@@ -181,22 +165,28 @@
         ];
 
         const planets = [];
-        let moonTargetMesh = null; // سيتم ربط المكوك به
+        let shuttleParent = null;
 
         planetsData.forEach(d => {
-            const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.size, 64, 64), new THREE.MeshStandardMaterial({ color: d.color, metalness: 0.1, roughness: 0.8 }));
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(d.size, 64, 64), new THREE.MeshStandardMaterial({ color: d.color }));
             mesh.userData = { angle: Math.random()*Math.PI*2, dist: d.dist, speed: d.speed };
-            mesh.renderOrder = 2;
-            scene.add(mesh); 
+            scene.add(mesh);
             const trail = createRadialTrail(d.color);
             const moons = [];
             if(d.moons) d.moons.forEach(m => {
                 const mm = new THREE.Mesh(new THREE.SphereGeometry(m.size, 32, 32), new THREE.MeshStandardMaterial({ color: 0xaaaaaa }));
                 mm.userData = { angle: Math.random()*6, dist: m.dist, speed: m.speed };
-                mm.renderOrder = 2;
                 scene.add(mm); moons.push(mm);
-                if(m.name === "القمر") moonTargetMesh = mm; 
+                if(d.name === "الأرض") shuttleParent = mm; 
             });
+            // استرجاع الحلقات
+            if(d.rings) {
+                const ringGeo = new THREE.RingGeometry(d.size*1.4, d.size*2.2, 64);
+                const ringMat = new THREE.MeshBasicMaterial({ color: d.color, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = Math.PI/2;
+                mesh.add(ring);
+            }
             planets.push({ mesh, moons, d, trail });
             const btn = document.createElement('button');
             btn.innerText = d.name;
@@ -204,20 +194,15 @@
             document.getElementById('planetary-list').appendChild(btn);
         });
 
-        // === 5. حقن المكوك الفضائي (The Shuttle Injection) ===
+        // حقن المكوك (up_base.fbx)
         let spaceShuttle;
         const fbxLoader = new THREE.FBXLoader();
-        fbxLoader.load('up_base.fbx', (object) => {
-            spaceShuttle = object;
-            // ربط المكوك بالقمر مباشرة ليتحرك معه في الرقصة الكونية
-            moonTargetMesh.add(spaceShuttle);
-            // وضعه في مدار قريب جداً من القمر
-            spaceShuttle.position.set(80000, 80000, 0); 
-            // توجيه المكوك
-            spaceShuttle.rotation.set(Math.PI/2, 0, 0);
+        fbxLoader.load('up_base.fbx', (obj) => {
+            spaceShuttle = obj;
+            if(shuttleParent) shuttleParent.add(spaceShuttle);
+            spaceShuttle.position.set(80000, 80000, 0);
         });
 
-        // === 6. الأحزمة (كايبر وكويكبات) ===
         const allRocks = [];
         function createBelt(array, count, minDist, maxDist, group, baseSize, isKuiper) {
             for(let i=0; i<count; i++) {
@@ -225,29 +210,13 @@
                 const angle = Math.random() * Math.PI * 2;
                 const dist = minDist + Math.random() * (maxDist - minDist);
                 rock.userData = { angle, dist, vShift: (Math.random()-0.5)*30000000, randID: Math.random(), baseSize, isKuiper };
-                rock.renderOrder = 1;
-                group.add(rock);
-                array.push(rock);
+                group.add(rock); array.push(rock);
             }
         }
         createBelt(allRocks, 5000, 115000000, 145000000, asteroidBeltGroup, 30000, false);
         createBelt(allRocks, 12000, 700000000, 1200000000, kuiperBeltGroup, 60000, true);
 
         let targetObj = sunMesh, clock = 0, gAngle = 0, vortexZ = 0;
-
-        function updateTrail(trail, currentPos) {
-            if (!trailsVisible) return;
-            const history = trail.userData.history;
-            const fixedMaxLen = 800; 
-            history.push(currentPos.clone());
-            if(history.length > fixedMaxLen) history.shift();
-            const positions = trail.geometry.attributes.position.array;
-            for(let i=0; i<history.length; i++) {
-                positions[i*3] = history[i].x; positions[i*3+1] = history[i].y; positions[i*3+2] = history[i].z;
-            }
-            trail.geometry.setDrawRange(0, history.length);
-            trail.geometry.attributes.position.needsUpdate = true;
-        }
 
         window.focusTarget = (name, btn) => {
             document.querySelectorAll('button').forEach(b => b.classList.remove('active-target'));
@@ -262,26 +231,35 @@
             if(spaceShuttle) targetObj = spaceShuttle;
         };
 
-        // === 7. محرك اللولب والإخراج السينمائي (Strict Logic) ===
+        function updateTrail(trail, currentPos) {
+            if (!trailsVisible) return;
+            const history = trail.userData.history;
+            history.push(currentPos.clone());
+            if(history.length > 800) history.shift();
+            const positions = trail.geometry.attributes.position.array;
+            for(let i=0; i<history.length; i++) {
+                positions[i*3] = history[i].x; positions[i*3+1] = history[i].y; positions[i*3+2] = history[i].z;
+            }
+            trail.geometry.setDrawRange(0, history.length);
+            trail.geometry.attributes.position.needsUpdate = true;
+        }
+
         function animate() {
             requestAnimationFrame(animate);
             const simSpeed = parseFloat(document.getElementById('speedRange').value);
             const gSpeed = parseFloat(document.getElementById('galacticSpeed').value);
             const scale = parseFloat(document.getElementById('scaleRange').value);
-            const rockScale = parseFloat(document.getElementById('kRockSize').value);
+            const shuttleBoost = parseFloat(document.getElementById('shuttleBoost').value);
             const density = parseFloat(document.getElementById('kDensity').value);
+            const rockScale = parseFloat(document.getElementById('kRockSize').value);
             
             clock += 0.01 * simSpeed;
             vortexZ += gSpeed * 100000 * simSpeed;
             solarVortex.position.z = vortexZ;
-
             gAngle += 0.00005 * simSpeed;
             galaxyPivot.rotation.y = gAngle;
 
-            sunMesh.position.x = Math.sin(clock * 0.5) * 5000000;
-            sunMesh.position.y = Math.cos(clock * 0.5) * 5000000;
             sunMesh.scale.setScalar(scale);
-
             const sunWorldPos = new THREE.Vector3();
             sunMesh.getWorldPosition(sunWorldPos);
             updateTrail(sunTrail, sunWorldPos);
@@ -290,8 +268,7 @@
                 p.mesh.userData.angle += p.d.speed * simSpeed * 0.1;
                 const orbitX = Math.sin(p.mesh.userData.angle) * p.d.dist;
                 const orbitY = Math.cos(p.mesh.userData.angle) * p.d.dist;
-                const helicalLag = - (p.d.dist * 0.15); 
-                p.mesh.position.set(sunWorldPos.x + orbitX, sunWorldPos.y + orbitY, sunWorldPos.z + helicalLag);
+                p.mesh.position.set(sunWorldPos.x + orbitX, sunWorldPos.y + orbitY, sunWorldPos.z - (p.d.dist * 0.15));
                 p.mesh.scale.setScalar(scale);
                 updateTrail(p.trail, p.mesh.position);
                 p.moons.forEach(m => {
@@ -301,10 +278,9 @@
                 });
             });
 
-            // تحديث حجم المكوك ديناميكياً مع التحكم
-            if (spaceShuttle) {
-                spaceShuttle.scale.setScalar(scale * 250); // ضبط التناسب مع حجم القمر
-                spaceShuttle.rotation.y += 0.01; // دوران هادئ للمكوك
+            if(spaceShuttle) {
+                spaceShuttle.scale.setScalar(scale * shuttleBoost);
+                spaceShuttle.rotation.z += 0.01;
             }
 
             kuiperBeltGroup.position.copy(solarVortex.position);
@@ -313,8 +289,7 @@
                 if(rock.visible) {
                     rock.scale.setScalar(rockScale);
                     rock.userData.angle += (rock.userData.isKuiper ? 0.0002 : 0.001) * simSpeed;
-                    let r = rock.userData.dist;
-                    rock.position.set(Math.cos(rock.userData.angle)*r, rock.userData.vShift, Math.sin(rock.userData.angle)*r);
+                    rock.position.set(Math.cos(rock.userData.angle)*rock.userData.dist, rock.userData.vShift, Math.sin(rock.userData.angle)*rock.userData.dist);
                 }
             });
 
@@ -326,8 +301,8 @@
             controls.update();
             renderer.render(scene, camera);
         }
-
         animate();
+
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
