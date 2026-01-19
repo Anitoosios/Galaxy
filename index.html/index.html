@@ -5,17 +5,21 @@
     <title>المحاكاة الفلكية 2026 - نظام الرؤية الشامل</title>
     <style>
         :root { --gold: #ffcc33; --glass: rgba(10, 10, 15, 0.98); --border: rgba(255, 204, 51, 0.4); --kuiper: #50fa7b; --shuttle: #00ffff; }
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; color: white; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', sans-serif; color: white; touch-action: none; }
         #gui { 
-            position: fixed; top: 0; right: 0; width: 350px; height: 100vh;
+            position: fixed; top: 0; right: 0; width: 320px; height: 100vh;
             background: var(--glass); backdrop-filter: blur(40px);
             border-left: 1px solid var(--border); z-index: 1000;
             display: flex; flex-direction: column; padding: 20px; box-sizing: border-box;
-            overflow-y: auto;
+            overflow-y: auto; transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @media (max-width: 768px) {
+            #gui { width: 260px; padding: 15px; }
+            #toggle-gui { right: 270px !important; }
         }
         #gui.hidden { transform: translateX(100%); }
         #toggle-gui {
-            position: fixed; top: 20px; right: 360px; background: var(--glass);
+            position: fixed; top: 20px; right: 330px; background: var(--glass);
             color: var(--gold); border: 1px solid var(--border); padding: 12px;
             cursor: pointer; z-index: 1001; border-radius: 12px; font-weight: bold;
         }
@@ -40,28 +44,24 @@
 
     <div id="gui">
         <h2>الرصد الكوني - نظام الرؤية المحسن</h2>
-        
         <div class="control-group">
             <span class="section-label">🌌 الاندفاع المجرى (Helical Motion)</span>
             <label>سرعة اندفاع الشمس: <input type="range" id="galacticSpeed" min="0" max="25" step="0.1" value="12"></label>
             <button id="trailBtn" class="toggle-btn" onclick="toggleTrails()">إخفاء ذيل الرصد</button>
         </div>
-
         <div class="control-group" style="border-color: var(--kuiper);">
             <span class="section-label" style="color:var(--kuiper)">💍 الأحزمة الغبارية (Asteroid & Kuiper)</span>
             <label>حجم الصخور الموحد: <input type="range" id="kRockSize" min="0.1" max="50.0" step="0.1" value="1.0"></label>
             <label>كثافة الأحزمة: <input type="range" id="kDensity" min="0.1" max="1.0" step="0.05" value="1.0"></label>
         </div>
-
         <div class="control-group">
             <span class="section-label">📐 فيزياء الدوامة</span>
             <label>حجم الأجرام (Scale): <input type="range" id="scaleRange" min="0.01" max="20.0" step="0.1" value="1.0"></label>
             <label style="color:var(--shuttle)">تضخم المكوك الذكي: <input type="range" id="shuttleBoost" min="1" max="5000" step="1" value="1000"></label>
             <label>سرعة الدوران المداري: <input type="range" id="speedRange" min="0" max="10" step="0.1" value="4"></label>
         </div>
-
-        <button onclick="focusTarget('الشمس', this)" class="active-target">☀️ قلب النظام (الشمس)</button>
-        <button id="shuttleFocusBtn" class="shuttle-btn" onclick="focusShuttle(this)">🚀 تتبع المكوك (رؤية تليسكوبية)</button>
+        <button onclick="focusTarget('الشمس', this)">☀️ قلب النظام (الشمس)</button>
+        <button id="shuttleFocusBtn" class="shuttle-btn active-target" onclick="focusShuttle(this)">🚀 تتبع المكوك (رؤية تليسكوبية)</button>
         <div id="planetary-list"></div>
     </div>
 
@@ -80,18 +80,17 @@
         let trailsVisible = true;
 
         const scene = new THREE.Scene();
-        // حقن معامل الرؤية المجهري
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.000001, GALAXY_RADIUS * 3);
         const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         document.body.appendChild(renderer.domElement);
 
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
-        controls.dampingFactor = 0.05;
-        controls.minDistance = 0.1; 
+        controls.dampingFactor = 0.07;
+        controls.minDistance = 0.00001; 
         controls.maxDistance = GALAXY_RADIUS * 2;
 
         const galaxyPivot = new THREE.Group();
@@ -128,7 +127,7 @@
         }
 
         const starGeo = new THREE.BufferGeometry();
-        const starCount = 300000;
+        const starCount = window.innerWidth < 768 ? 150000 : 300000;
         const starPos = new Float32Array(starCount * 3);
         const starCol = new Float32Array(starCount * 3);
         for(let i=0; i<starCount; i++) {
@@ -151,7 +150,6 @@
         sunMesh.add(new THREE.PointLight(0xffffff, 6, 0));
         const sunTrail = createRadialTrail(0xffcc33);
 
-        // تم استرجاع بلوتو وحلقات زحل والأقمار بدقة
         const planetsData = [
             { name: "عطارد", size: 80000, dist: 25000000, speed: 0.15, color: 0x8C7853 },
             { name: "الزهرة", size: 190000, dist: 45000000, speed: 0.12, color: 0xFFC649 },
@@ -179,7 +177,6 @@
                 scene.add(mm); moons.push(mm);
                 if(d.name === "الأرض") shuttleParent = mm; 
             });
-            // استرجاع الحلقات
             if(d.rings) {
                 const ringGeo = new THREE.RingGeometry(d.size*1.4, d.size*2.2, 64);
                 const ringMat = new THREE.MeshBasicMaterial({ color: d.color, side: THREE.DoubleSide, transparent: true, opacity: 0.5 });
@@ -194,18 +191,24 @@
             document.getElementById('planetary-list').appendChild(btn);
         });
 
-        // حقن المكوك (up_base.fbx)
         let spaceShuttle;
+        let targetObj = sunMesh; // افتراضي للشمس حتى يتم تحميل المكوك
+
         const fbxLoader = new THREE.FBXLoader();
         fbxLoader.load('up_base.fbx', (obj) => {
             spaceShuttle = obj;
             if(shuttleParent) shuttleParent.add(spaceShuttle);
             spaceShuttle.position.set(80000, 80000, 0);
+            
+            // القانون الصارم: بدء التصوير من المكوك
+            targetObj = spaceShuttle;
+            camera.position.set(ORION_ARM_DIST + 75000000, 500000, 500000); 
         });
 
         const allRocks = [];
         function createBelt(array, count, minDist, maxDist, group, baseSize, isKuiper) {
-            for(let i=0; i<count; i++) {
+            const rockCount = window.innerWidth < 768 ? count * 0.5 : count;
+            for(let i=0; i<rockCount; i++) {
                 const rock = new THREE.Mesh(new THREE.IcosahedronGeometry(baseSize, 0), new THREE.MeshStandardMaterial({ color: 0x888888 }));
                 const angle = Math.random() * Math.PI * 2;
                 const dist = minDist + Math.random() * (maxDist - minDist);
@@ -216,7 +219,7 @@
         createBelt(allRocks, 5000, 115000000, 145000000, asteroidBeltGroup, 30000, false);
         createBelt(allRocks, 12000, 700000000, 1200000000, kuiperBeltGroup, 60000, true);
 
-        let targetObj = sunMesh, clock = 0, gAngle = 0, vortexZ = 0;
+        let clock = 0, gAngle = 0, vortexZ = 0;
 
         window.focusTarget = (name, btn) => {
             document.querySelectorAll('button').forEach(b => b.classList.remove('active-target'));
@@ -280,7 +283,9 @@
 
             if(spaceShuttle) {
                 spaceShuttle.scale.setScalar(scale * shuttleBoost);
-                spaceShuttle.rotation.z += 0.01;
+                spaceShuttle.rotation.y += 0.02;
+                spaceShuttle.rotation.x = 0;
+                spaceShuttle.rotation.z = 0;
             }
 
             kuiperBeltGroup.position.copy(solarVortex.position);
@@ -297,6 +302,9 @@
                 const wp = new THREE.Vector3();
                 targetObj.getWorldPosition(wp);
                 controls.target.lerp(wp, 0.1);
+                const dist = camera.position.distanceTo(wp);
+                controls.rotateSpeed = dist < 1000000 ? 0.3 : 1.0;
+                controls.zoomSpeed = dist < 1000000 ? 0.5 : 2.0;
             }
             controls.update();
             renderer.render(scene, camera);
